@@ -7,116 +7,115 @@ Entering a blank line will exit the client.
 
 import socket
 import sys
+import signal
+import fcntl, os
+import errno
+import select
 
 BUF = 4096
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+def signal_handler(signal, frame):
+    print('Exit the program.')
+    s.close()
+    sys.exit(0)
 
 def username(s):
-
-	username = raw_input('Username: ')
+	while True:
+		username = raw_input('Username: ')
+		if username != '':
+			break
 	s.send(username)
 
 def password(s):
-
-	password = raw_input('Password: ')
+	while True:
+		password = raw_input('Password: ')
+		if password != '':
+			break	
 	s.send(password)
 
 def command(s):
+	while True:
+		command = raw_input('\nCommand: ')
+		receive_message(s)
+		if command != '':
+			s.send(command)
+			break
 
-	command = raw_input('Command: ')
-	s.send(command)
+def who(s):
+	users = s.recv(BUF)
+	print 'Current connected users:'
+	print users
+
+def last(s):
+	users = s.recv(BUF)
+	print 'Users recently connected:'
+	print users
+
+def receive_message(s):
+	s.setblocking(0)
+	try:
+		msg = s.recv(BUF)
+	except:
+		pass
+	else:
+		print 'You\'ve got a message!'
+		print '---------------------------------'
+		print msg
+		print '---------------------------------'
+	s.setblocking(1)
 
 def main(argv):
+	signal.signal(signal.SIGINT, signal_handler)
 
 	host = argv[0]
 	port = int(argv[1])
 
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	s.connect((host,port))
-	#sys.stdout.write('%')
 
-	while 1:
-		'''
-	    # read from keyboard
-	    line = sys.stdin.readline()
-	    if line == '\n':
-	        break
-	    s.send(line)
-	    '''
+	login = False
+	while True:
+
+		if login:
+			command(s)
 
 		data = s.recv(BUF)
-		#print data
 		if data == 'username':
 			username(s)
-		if data == 'password':
+		elif data == 'password':
 			password(s)
-		if data == 'wronguser':
-			print 'Invalid username'
-		if data == 'alreadyin':
-			print 'This user is already logged in.'
-		if data == 'wrongpass':
-			print 'Invalid password'
-		if data == 'blocked':
-			print 'This username is blocked for a while since the last attempt'
+		elif data == 'wronguser':
+			print '\nInvalid username.'
+		elif data == 'alreadyin':
+			print '\nThis user is already logged in.'
+		elif data == 'wrongpass':
+			print '\nInvalid password.'
+		elif data == 'blocked':
+			print '\nThis username is blocked for a while since the last attempt.'
 			s.close()
 			break
 
-		if data == 'welcome':
-			print 'Welcome to the simple chat server!'
-			command(s)
+		elif data == 'welcome':
+			print '\nWelcome to the simple chat server!'
+			login = True
+		elif data == 'who':
+			who(s)
+		elif data == 'last':
+			last(s)
+		elif data == 'broadcastDone':
+			print 'Sent message to everyone!'
+		#elif data == 'broadcast':
+		#	broadcast(s)
+		elif data == 'logout':
+			print '\nSuccessfully logged out.'
+			break
+		elif data == 'invalidCommand':
+			print 'Invalid command.'
+		#else:
+		#	print 'Error.'
+		#	break
 
-		'''
-	    sys.stdout.write(data)
-	    sys.stdout.write('%')
-	    '''
 	s.close()
 
 if __name__ == '__main__':
 	main(sys.argv[1:])
-
-
-'''
-
-import sys
-from socket import *
-
-BUF = 4096
-
-def main(argv):
-
-	servIP = argv[0]
-	servPort = int(argv[1])
-	clntSock = socket(AF_INET, SOCK_STREAM)
-	clntSock.connect((servIP, servPort))
-
-	sentence = raw_input('Input: ')
-
-	clntSock.send(sentence)
-
-	clntSock.close()
-
-if __name__ == '__main__':
-	main(sys.argv[1:])
-
-import sys
-from socket import *
-
-BUF = 4096
-
-def main(argv):
-
-	ip = argv[0]
-	port = int(argv[1])
-	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sock.connect((ip, port))
-
-    try:
-    	message = raw_input('Input: ')
-        sock.sendall(message)
-        response = sock.recv(1024)
-        print "Received: {}".format(response)
-    finally:
-        sock.close()
-
-if __name__ == '__main__':
-	main(sys.argv[1:])
-'''
