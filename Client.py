@@ -1,65 +1,89 @@
-import socket
 import sys
+import socket
 import signal
-import fcntl, os
-import errno
-import select
+import thread
 
 BUF = 4096
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+flag = 1
 
 def signal_handler(signal, frame):
     print('Exit the program.')
     s.close()
     sys.exit(0)
 
-def username(s):
+def username():
 	while True:
 		username = raw_input('Username: ')
 		if username != '':
 			break
 	s.send(username)
 
-def password(s):
+def password():
 	while True:
 		password = raw_input('Password: ')
 		if password != '':
 			break	
 	s.send(password)
 
-def command(s):
-	while True:
-		command = raw_input('\nCommand: ')
-		receive_message(s)
+def command():
+	global flag
+	while flag:
+		command = raw_input('Command: ')
 		if command != '':
 			s.send(command)
+			if command == 'logout':
+				print 'Terminate this client program.'
+				sys.exit(0)
+
+			flag = 0
 			break
 
-def who(s):
-	users = s.recv(BUF)
+def who(msg):
+	index = msg.find(' ')
+	msg = msg[index+1:]
 	print 'Current connected users:'
-	print users
+	print msg
 
-def last(s):
-	users = s.recv(BUF)
+def last(msg):
+	index = msg.find(' ')
+	msg = msg[index+1:]
 	print 'Users recently connected:'
-	print users
+	print msg
 
-def receive_message(s):
-	s.setblocking(0)
-	try:
-		msg = s.recv(BUF)
-	except:
-		pass
-	else:
-		if len(msg) == 0:
-			print 'recv() failed.'
-			sys.exit(0)
-		print 'You\'ve got a message!'
-		print '---------------------------------'
-		print msg
-		print '---------------------------------'
-	s.setblocking(1)
+def receive_message():
+	#s.setblocking(0)
+
+	global flag
+	while True:
+		try:
+			data = s.recv(BUF)
+		except:
+			print 'recv() failed. Press enter to exit the program.'
+			break
+		else:
+			if len(data) == 0:
+				print 'recv() failed. Press enter to exit the program.'
+				break
+
+			if data.find('who') == 0:
+				who(data)
+			elif data.find('last') == 0:
+				last(data)
+			elif data == 'broadcastDone':
+				print 'Sent a message to everyone!\n'
+			elif data == 'invalidCommand':
+				print 'Invalid command.\n'
+
+			else:
+				print '\nYou\'ve got a message!'
+				print '---------------------------------'
+				print data
+				print '---------------------------------'
+				print 'Command:'
+			flag = 1
+
+	thread.interrupt_main()
 
 def main(argv):
 	signal.signal(signal.SIGINT, signal_handler)
@@ -70,46 +94,38 @@ def main(argv):
 	s.connect((host,port))
 
 	login = False
-	while True:
+	while not login:
 
-		if login:
-			command(s)
-
-		data = s.recv(BUF)
+		try:
+			data = s.recv(BUF)
+		except:
+			print 'recv() failed'
+			break
+		if len(data) == 0:
+			print 'recv() failed'
+			break
+		
 		if data == 'username':
-			username(s)
+			username()
 		elif data == 'password':
-			password(s)
+			password()
 		elif data == 'wronguser':
-			print '\nInvalid username.'
+			print 'Invalid username.\n'
 		elif data == 'alreadyin':
-			print '\nThis user is already logged in.'
+			print 'This user is already logged in.\n'
 		elif data == 'wrongpass':
-			print '\nInvalid password.'
+			print 'Invalid password.\n'
 		elif data == 'blocked':
-			print '\nThis username is blocked for a while since the last attempt.'
-			s.close()
+			print 'This username is blocked for a while since the last attempt.\n'
 			break
-
 		elif data == 'welcome':
-			print '\nWelcome to the simple chat server!'
+			print '\nWelcome to the simple chat server!\n'
 			login = True
-		elif data == 'who':
-			who(s)
-		elif data == 'last':
-			last(s)
-		elif data == 'broadcastDone':
-			print 'Sent message to everyone!'
-		#elif data == 'broadcast':
-		#	broadcast(s)
-		elif data == 'logout':
-			print '\nSuccessfully logged out.'
-			break
-		elif data == 'invalidCommand':
-			print 'Invalid command.'
-		#else:
-		#	print 'Error.'
-		#	break
+
+	if login:
+		thread.start_new_thread(receive_message, ())
+		while True:
+			command()
 
 	s.close()
 

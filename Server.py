@@ -55,7 +55,7 @@ class Server:
                 users[user_pass_list[i]] = True
 
         self.open_socket() 
-        input = [self.server,sys.stdin] 
+        input = [self.server] 
         running = 1 
         while running:
             inputready,outputready,exceptready = select.select(input,[],[]) 
@@ -70,13 +70,7 @@ class Server:
                     self.threads.append(c)
                     print 'one thread created.'
 
-                elif s == sys.stdin: 
-                    # handle standard input 
-                    junk = sys.stdin.readline() 
-                    running = 0 
-
         # close all threads 
-
         self.server.close() 
         for c in self.threads: 
             c.join()
@@ -116,7 +110,6 @@ class Client(threading.Thread):
                 elif command.find('last') == 0:
                     self.last(command)
                 elif command == 'logout':
-                    self.send('logout')
                     running = 0
                 elif command.find('broadcast') == 0:
                     self.broadcast(command)
@@ -227,12 +220,12 @@ class Client(threading.Thread):
     def who(self):
         users = current_users.keys()
 
-        response = ''
+        response = 'who '
         for user in users:
             response = response + str(user) + ' '
         response = response[:-1]
+        response = response + '\n'
 
-        self.send('who')
         self.send(response)
 
     def last(self, command):
@@ -246,7 +239,7 @@ class Client(threading.Thread):
             dt = datetime.now(pytz.timezone('US/Eastern'))
             present = dt.replace(tzinfo=None)
 
-            response = ''
+            response = 'last '
             for user in current_users:
                 response = response + str(user) + ' '
             for user in logout_history.keys():
@@ -254,18 +247,18 @@ class Client(threading.Thread):
                      if present - logout_history[user] < timedelta(minutes=mins):
                         response = response + str(user) + ' '
             response = response[:-1]
+            response = response + '\n'
 
-            self.send('last')
             self.send(response)
 
     def broadcast(self, command):
         broadcast_and_message = command.split()
 
-        if len(broadcast_and_message) != 2:
+        if len(broadcast_and_message) < 2:
             self.send('invalidCommand')
         else:
-            message = broadcast_and_message[1]
-            message = '-- From ' + self.user + ' --\n' + message + '\n'
+            message = command[command.find(' ') + 1:]
+            message = '<from ' + self.user + '>\n' + message + '\n'
             for user in current_users:
                 if user != self.user:
                     client_socks[user].send(message)
