@@ -1,10 +1,3 @@
-#!/usr/bin/env python
-
-"""
-An echo client that allows the user to send multiple lines to the server.
-Entering a blank line will exit the client.
-"""
-
 import socket
 import sys
 import signal
@@ -59,6 +52,9 @@ def receive_message(s):
 	except:
 		pass
 	else:
+		if len(msg) == 0:
+			print 'recv() failed.'
+			sys.exit(0)
 		print 'You\'ve got a message!'
 		print '---------------------------------'
 		print msg

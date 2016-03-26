@@ -68,7 +68,7 @@ class Server:
                     c.setDaemon(True)
                     c.start()
                     self.threads.append(c)
-                    print 'one thread created'
+                    print 'one thread created.'
 
                 elif s == sys.stdin: 
                     # handle standard input 
@@ -85,13 +85,13 @@ class Server:
 
 class Client(threading.Thread): 
     def __init__(self,(client,address),user_pass_list): 
-        threading.Thread.__init__(self) 
+        threading.Thread.__init__(self)
         self.client = client 
         self.address = address 
         self.size = BUF
         self.user_pass_list = user_pass_list
         self.user = ''
-
+    
     def run(self):
         running = 1
         while running:
@@ -104,41 +104,44 @@ class Client(threading.Thread):
                     running = 0
 
             else:
-                try:
-                    command = self.client.recv(self.size)
-                except:
-                    current_users.pop(self.user, None)
-                    dt = datetime.now(pytz.timezone('US/Eastern'))
-                    present = dt.replace(tzinfo=None)
-                    logout_history[self.user] = present
-                    running = 0
+                command = self.receive()
+                if len(command) == 0:
+                    print 'receive() from ' + self.user + ' failed.'
+                    break
+
+                print 'command from ' + self.user + ': ' + command
 
                 if command == 'who':
                     self.who()
                 elif command.find('last') == 0:
                     self.last(command)
                 elif command == 'logout':
-                    self.logout()
+                    self.send('logout')
                     running = 0
                 elif command.find('broadcast') == 0:
                     self.broadcast(command)
                 else:
                     self.send('invalidCommand')
         
-        self.client.close()
-        print 'one client terminated'
+        self.logout()
+        if self.user != '':
+            print self.user + ' terminated.'
+        else:
+            print 'one client terminated.'
 
     def send(self, message):
         try:
             self.client.send(message)
         except:
-            dt = datetime.now(pytz.timezone('US/Eastern'))
-            present = dt.replace(tzinfo=None)
-            current_users.pop(self.user, None)
-            logout_history[self.user] = present
-            self.client.close()
-            print 'one client terminated'
-            
+            self.logout()
+
+    def receive(self):
+        try:
+            msg = self.client.recv(self.size)
+        except:
+            self.logout()        
+        else:
+            return msg
 
     def login(self):
         success = False
@@ -148,7 +151,10 @@ class Client(threading.Thread):
         # doesn't cause denial-of-service attacks.
         while count < 4:
             self.send('username')
-            username = self.client.recv(self.size)
+            username = self.receive()
+            if len(username) == 0:
+                print 'receive() from ' + self.user + ' failed.'
+                break
 
             # Check if this user from this ip address has been blocked or not.
             check = username + ' ' + self.address[0]
@@ -162,7 +168,10 @@ class Client(threading.Thread):
                     break
 
             self.send('password')
-            password = self.client.recv(self.size)
+            password = self.receive()
+            if len(password) == 0:
+                print 'receive() from ' + self.user + ' failed.'
+                break
             password = hashlib.sha1(password.encode()).hexdigest()
 
             # If wrong username, let the user know it and continue the while loop.
@@ -256,21 +265,19 @@ class Client(threading.Thread):
             self.send('invalidCommand')
         else:
             message = broadcast_and_message[1]
-            message = '-- From ' + self.user + ' --\n' + message
+            message = '-- From ' + self.user + ' --\n' + message + '\n'
             for user in current_users:
                 if user != self.user:
                     client_socks[user].send(message)
             self.send('broadcastDone')
 
     def logout(self):
-        current_users.pop(self.user, None)
-        dt = datetime.now(pytz.timezone('US/Eastern'))
-        present = dt.replace(tzinfo=None)
-        logout_history[self.user] = present
-        self.send('logout')
-
-        #print current_users
-        #print logout_history
+        if self.user != '':
+                dt = datetime.now(pytz.timezone('US/Eastern'))
+                present = dt.replace(tzinfo=None)
+                current_users.pop(self.user, None)
+                logout_history[self.user] = present
+        self.client.close()
 
 if __name__ == "__main__": 
     s = Server(sys.argv[1]) 
